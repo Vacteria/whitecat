@@ -1,0 +1,82 @@
+#!/bin/bash
+
+gui_die()
+{
+	dialog "$(gettext "\Z0Fatal error")" --msgbox "$(msg "${@}")" 10 60
+
+	exit 1
+}
+
+gui_msg()
+{
+	dialog "$(gettext "\Z0Notice")" --infobox "$(msg "${@}" )" 10 60
+}
+
+print_main_menu()
+{
+	dialog "$(gettext "\Z0Main menu")" --cancel-label \
+	"$(gettext "Exit")" --extra-button --ok-label "$(gettext "Select")" \
+	--extra-label "$(gettext "Install")" --stdout --visit-items --menu \
+	"$(gettext "\nIn this menu, you can configure your vct instalation. Remember \
+	that not all steps are sequential and some are entirely optional\n")" 18 60 6 \
+	"1" "$(gettext "Partitioning")" \
+	"2" "$(gettext "Partitions setup")" \
+	"3" "$(gettext "Instalation type")" \
+	"4" "$(gettext "Users setup")" \
+	"5" "$(gettext "Locales and time")" \
+	"6" "$(gettext "Bootloader setup")"
+}
+
+print_disk_dg()
+{
+	local ID DEV SIZE MODEL KSIZE MSIZE GSIZE TSIZE USE_SIZE
+
+	log_printing_dialog "Disk select"
+
+cat > ${MYDISKDG} << EOF
+#!/bin/bash
+
+dialog --colors --title "$(gettext "\Z0Disk selection")" --ok-label "$(gettext 'Select')" \
+--stdout --menu "$(gettext "Select one disk to parted")" 10 70 0 \\
+EOF
+
+	for ID in $(sql "SELECT id_disk FROM Disks")
+	do
+		DEV="$(sql "SELECT device FROM Disks WHERE id_disk='${ID}'")"
+		SIZE="$(sql "SELECT size FROM Disks WHERE id_disk='${ID}'")"
+		KSIZE="$((${SIZE} / ${MYBITE}))"
+		MSIZE="$((${SIZE} / ${MYBITE} / ${MYBITE}))"
+		GSIZE="$((${SIZE} / ${MYBITE} / ${MYBITE} / ${MYBITE}))"
+		TSIZE="$((${SIZE} / ${MYBITE} / ${MYBITE} / ${MYBITE} / ${MYBITE}))"
+		MODEL="$(sql "SELECT model FROM Disks WHERE id_disk='${ID}'")"
+
+		if (( ${KSIZE} >= ${MYBITE} ))
+		then
+			if (( ${MSIZE} >= ${MYBITE} ))
+			then
+				if (( ${GSIZE} >= ${MYBITE} ))
+				then
+					if (( ${TSIZE} > 1 ))
+					then
+						USE_SIZE="${TSIZE}TB"
+					fi
+				else
+					USE_SIZE="${GSIZE}GB"
+				fi
+			else
+				USE_SIZE="${MSIZE}MB"
+			fi		
+		else
+			USE_SIZE="${KSIZE}KB"
+		fi
+	done
+
+cat >> ${MYDISKDG} <<EOF
+${DEV} "${USE_SIZE} ${MODEL}" \\
+EOF
+
+#cat >> ${MYDISKDG} <<EOF
+#$(sql "SELECT (device||' \"'||size||' '||model||'\" \\') FROM Disks AS EXPR1")
+#EOF
+}
+
